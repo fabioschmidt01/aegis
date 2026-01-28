@@ -1,109 +1,124 @@
+use anyhow::{Context, Result};
 use std::process::Command;
-use anyhow::{Result, Context};
 
 pub struct IptablesManager;
 
 impl IptablesManager {
     /// Backup current iptables rules to a file
     pub fn backup_rules() -> Result<()> {
-        // Simple backup: usually we might just flush logic, but saving is good practice.
-        // For this tool, we rely on "flushing" our custom chain or rules on stop.
-        // Ideally, we should save to a temp file if we want full restore,
-        // but typically Anonsurf clones just clear their mess.
+        // Simple backup: same as before
         Ok(())
     }
 
-    /// Apply transparent proxy rules
-    /// Redirects TCP to 9040 (TransPort) and DNS to 5353 (DNSPort)
+    /// Apply transparent proxy rules using batched pkexec
     pub fn apply_rules(tor_uid: &str, dns_port: &str, trans_port: &str) -> Result<()> {
-        // 1. Flush/Reset first
-        // Self::flush_rules()?;
+        let mut commands = Vec::new();
 
-        // --- STRICT MODE: DROP EVERYTHING BY DEFAULT ---
-        run_iptables(&["-P", "INPUT", "DROP"])?;
-        run_iptables(&["-P", "FORWARD", "DROP"])?;
-        run_iptables(&["-P", "OUTPUT", "DROP"])?;
+        // 1. Policy: DROP EVERYTHING
+        commands.push(format!("iptables -P INPUT DROP"));
+        commands.push(format!("iptables -P FORWARD DROP"));
+        commands.push(format!("iptables -P OUTPUT DROP"));
 
-        // 2. Allow Loopback (essential)
-        run_iptables(&["-A", "INPUT", "-i", "lo", "-j", "ACCEPT"])?;
-        run_iptables(&["-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT"])?;
+        // 2. Allow Loopback
+        commands.push(format!("iptables -A INPUT -i lo -j ACCEPT"));
+        commands.push(format!("iptables -A OUTPUT -o lo -j ACCEPT"));
 
-        // 3. Allow Established Related traffic (incoming)
-        run_iptables(&["-A", "INPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"])?;
+        // 3. Allow Established/Related
+        commands.push(format!(
+            "iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT"
+        ));
 
         // 4. DNS Redirection (UDP) -> Tor DNSPort
-        // We must allow OUTPUT to localhost UDP for DNS
-        run_iptables(&["-t", "nat", "-A", "OUTPUT", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", dns_port])?;
-        // Need to ALLOW the redirected packet in OUTPUT chain (it becomes localhost traffic)
-        // But actual DNS packets leaving via Tor are handled by Tor process.
-        
+        commands.push(format!(
+            "iptables -t nat -A OUTPUT -p udp --dport 53 -j REDIRECT --to-ports {}",
+            dns_port
+        ));
+
         // 5. Allow Tor Process Output
-        // The Tor process itself needs to talk to the internet.
-        run_iptables(&["-A", "OUTPUT", "-m", "owner", "--uid-owner", tor_uid, "-j", "ACCEPT"])?;
+        commands.push(format!(
+            "iptables -A OUTPUT -m owner --uid-owner {} -j ACCEPT",
+            tor_uid
+        ));
 
         // 6. Transparent Proxy Redirection (TCP) -> Tor TransPort
-        // Redirect standard TCP to 9040
-        // Exclude Tor user and Loopback (already allowed/handled above but let's be explicitly safe in NAT)
-        run_iptables(&["-t", "nat", "-A", "OUTPUT", "-p", "tcp", "-m", "owner", "--uid-owner", tor_uid, "-j", "RETURN"])?;
-        run_iptables(&["-t", "nat", "-A", "OUTPUT", "-o", "lo", "-j", "RETURN"])?;
-        run_iptables(&["-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--syn", "-j", "REDIRECT", "--to-ports", trans_port])?;
-        
-        // 7. Allow TCP Output (that has been redirected to TransPort -> Localhost)
-        // Since we dropped OUTPUT by default, we need to allow traffic destined to TransPort?
-        // Actually, redirected traffic re-traverses the stack. Anonsurf usually allows ALL output or specific processing.
-        // If policy is DROP, we must allow the redirected traffic.
-        // Redirected packets destination changes to 127.0.0.1:9040.
-        // So we need to allow OUTPUT to destination 127.0.0.1 tcp port 9040/5353.
-        run_iptables(&["-A", "OUTPUT", "-d", "127.0.0.1/32", "-p", "tcp", "--dport", trans_port, "-j", "ACCEPT"])?;
-        run_iptables(&["-A", "OUTPUT", "-d", "127.0.0.1/32", "-p", "udp", "--dport", dns_port, "-j", "ACCEPT"])?;
+        commands.push(format!(
+            "iptables -t nat -A OUTPUT -p tcp -m owner --uid-owner {} -j RETURN",
+            tor_uid
+        ));
+        commands.push(format!("iptables -t nat -A OUTPUT -o lo -j RETURN"));
+        commands.push(format!(
+            "iptables -t nat -A OUTPUT -p tcp --syn -j REDIRECT --to-ports {}",
+            trans_port
+        ));
 
-        // 8. IPv6 Blocking (Total)
-        let _ = run_command("ip6tables", &["-P", "INPUT", "DROP"]);
-        let _ = run_command("ip6tables", &["-P", "OUTPUT", "DROP"]);
-        let _ = run_command("ip6tables", &["-P", "FORWARD", "DROP"]);
+        // 7. Allow Redirected Output (to localhost)
+        commands.push(format!(
+            "iptables -A OUTPUT -d 127.0.0.1/32 -p tcp --dport {} -j ACCEPT",
+            trans_port
+        ));
+        commands.push(format!(
+            "iptables -A OUTPUT -d 127.0.0.1/32 -p udp --dport {} -j ACCEPT",
+            dns_port
+        ));
 
-        Ok(())
+        // 8. IPv6 Blocking
+        commands.push(format!("ip6tables -P INPUT DROP"));
+        commands.push(format!("ip6tables -P OUTPUT DROP"));
+        commands.push(format!("ip6tables -P FORWARD DROP"));
+
+        execute_batch(&commands)
     }
 
-    /// Flush all rules created by Anonsurf
+    /// Flush all rules using batched pkexec
     pub fn flush_rules() -> Result<()> {
-        // Reset default policies
-        run_iptables(&["-P", "INPUT", "ACCEPT"])?;
-        run_iptables(&["-P", "OUTPUT", "ACCEPT"])?;
-        run_iptables(&["-P", "FORWARD", "ACCEPT"])?;
+        let mut commands = Vec::new();
 
-        // Flush NAT table
-        run_iptables(&["-t", "nat", "-F"])?;
-        run_iptables(&["-t", "nat", "-X"])?;
+        // Reset policies
+        commands.push(format!("iptables -P INPUT ACCEPT"));
+        commands.push(format!("iptables -P OUTPUT ACCEPT"));
+        commands.push(format!("iptables -P FORWARD ACCEPT"));
 
-        // Flush Filter table
-        run_iptables(&["-F"])?;
-        run_iptables(&["-X"])?;
+        // Flush & Delete chains
+        commands.push(format!("iptables -t nat -F"));
+        commands.push(format!("iptables -t nat -X"));
+        commands.push(format!("iptables -F"));
+        commands.push(format!("iptables -X"));
 
         // Reset IPv6
-        let _ = run_command("ip6tables", &["-P", "INPUT", "ACCEPT"]);
-        let _ = run_command("ip6tables", &["-P", "OUTPUT", "ACCEPT"]);
-        let _ = run_command("ip6tables", &["-P", "FORWARD", "ACCEPT"]);
-        let _ = run_command("ip6tables", &["-F"]);
+        commands.push(format!("ip6tables -P INPUT ACCEPT"));
+        commands.push(format!("ip6tables -P OUTPUT ACCEPT"));
+        commands.push(format!("ip6tables -P FORWARD ACCEPT"));
+        commands.push(format!("ip6tables -F"));
 
-        Ok(())
+        execute_batch(&commands)
     }
 }
 
-fn run_iptables(args: &[&str]) -> Result<()> {
-    run_command("iptables", args)
-}
+/// Executes a list of commands as a single privileged script
+fn execute_batch(commands: &[String]) -> Result<()> {
+    if commands.is_empty() {
+        return Ok(());
+    }
 
-fn run_command(cmd: &str, args: &[&str]) -> Result<()> {
-    let status = Command::new(cmd)
-        .args(args)
+    // Join commands with && so if one fails, execution stops (safety)
+    // We add `set -x` for debug output if needed, but let's keep it clean
+    let script = commands.join(" && ");
+
+    // Use pkexec to run the whole batch as root
+    // We wrap in 'sh -c' to interpret the && chain
+    let status = Command::new("pkexec")
+        .arg("sh")
+        .arg("-c")
+        .arg(&script)
         .status()
-        .context(format!("Failed to execute {}", cmd))?;
+        .context("Failed to execute privileged batch command")?;
 
     if status.success() {
         Ok(())
     } else {
-        // We don't panic here, but we might want to log it
-        Err(anyhow::anyhow!("Command {} failed with status {}", cmd, status))
+        Err(anyhow::anyhow!(
+            "Privileged batch execution failed with status {}",
+            status
+        ))
     }
 }
