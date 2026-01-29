@@ -55,6 +55,11 @@ For anyone who wants to browse the web anonymously. You don't need to be a tech 
 *   **Inspetor de Identidade**: Mostra seu status IPv6 (Bloqueado/Seguro), Endereço MAC e IP Público.
 *   **Log de Atividade**: Veja exatamente o que o Aegis está fazendo (regras de firewall, reinícios de serviço, etc).
 
+### ⚔️ Defesa Ativa (Active Defense) [NOVO]
+*   **Detector de Rastreamento (GeoIP):** Monitora conexões de entrada de países específicos (ex: Israel) conhecidos por exportar tecnologias de vigilância.
+*   **Honeypot de Resposta:** Se um rastreador for detectado, o Aegis aceita a conexão momentaneamente, envia uma mensagem personalizada (configurável pelo usuário) e derruba a conexão. O rastreador recebe sua mensagem ao invés dos seus dados.
+*   **Alertas de Segurança**: Notifica visualmente no painel quando tentativas de rastreamento são bloqueadas.
+
 ---
 
 ## 🇺🇸 Features (English)
@@ -77,6 +82,11 @@ For anyone who wants to browse the web anonymously. You don't need to be a tech 
 *   **Real-Time Graph**: Visualizes upload/download speeds encrypted via Tor.
 *   **Identity Inspector**: Shows your current IPv6 status (Blocked/Secure), MAC Address, and Public IP.
 *   **Live Activity Log**: Watch exactly what Aegis is doing in the background (iptables rules, service restarts, etc).
+
+### ⚔️ Active Defense [NEW]
+*   **Tracking Detector (GeoIP):** Monitors incoming connections from specific countries (e.g., Israel) known for exporting surveillance tech.
+*   **Response Honeypot:** If a tracker is detected, Aegis momentarily accepts the connection, sends a custom message (configurable by you), and drops the connection. The tracker gets your message instead of your data.
+*   **Security Alerts:** Visually notifies you on the dashboard when tracking attempts are blocked.
 
 ## 🛠️ Installation
 

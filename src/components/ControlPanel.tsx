@@ -55,6 +55,50 @@ export function ControlPanel({ active, loading, onToggle, onRefresh }: ControlPa
                     <div className="text-xs text-slate-500 group-hover:text-slate-400 transition-colors">Request new Tor Circuit</div>
                 </div>
             </button>
+
+            {/* Active Defense Configuration */}
+            <div className="col-span-1 md:col-span-2 glass-card p-6 border-t border-white/5 mt-2">
+                <div className="flex items-center space-x-3 mb-4">
+                    <div className="p-2 bg-red-500/10 rounded-lg">
+                        <Power className="w-5 h-5 text-red-500" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Active Defense Response</h3>
+                        <p className="text-xs text-slate-500">Message to send when blocking tracking attempts</p>
+                    </div>
+                </div>
+
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        const msg = formData.get('message') as string;
+                        if (msg) {
+                            import("@tauri-apps/api/core").then(({ invoke }) => {
+                                invoke("set_defense_message", { message: msg })
+                                    .then(() => alert("Message Updated"))
+                                    .catch(err => alert("Failed: " + err));
+                            });
+                        }
+                    }}
+                    className="flex gap-2"
+                >
+                    <input
+                        name="message"
+                        type="text"
+                        defaultValue="ACCESS DENIED: Tracking Attempt Detected."
+                        placeholder="Enter custom response message..."
+                        className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-4 py-2 bg-slate-700 hover:bg-indigo-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        Update
+                    </button>
+                </form>
+            </div>
         </div>
     );
 }

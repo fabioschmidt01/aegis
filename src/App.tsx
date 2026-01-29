@@ -39,11 +39,16 @@ function App() {
       addLog(event.payload);
     });
 
+    const unlistenAlert = listen<string>('security_alert', (event) => {
+      addLog(`[SECURITY ALERT] ${event.payload}`);
+    });
+
     checkStatus();
     fetchIpData();
 
     return () => {
       unlisten.then(f => f());
+      unlistenAlert.then(f => f());
     };
   }, []);
 

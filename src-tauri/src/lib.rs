@@ -1,12 +1,13 @@
 use tauri::State;
 mod anonsurf;
+mod geoip;
+mod honeypot;
 mod iptables;
-mod stealth;
 mod stats;
+mod stealth;
 
 use anonsurf::{Anonsurf, AnonsurfState};
 use tauri::AppHandle;
-
 
 #[tauri::command]
 fn start_anonsurf(app: AppHandle, state: State<AnonsurfState>) -> Result<String, String> {
@@ -15,7 +16,7 @@ fn start_anonsurf(app: AppHandle, state: State<AnonsurfState>) -> Result<String,
             *state.is_active.lock().unwrap() = true;
             Ok("Anonsurf started successfully".to_string())
         }
-        Err(e) => Err(format!("Error starting Anonsurf: {}", e))
+        Err(e) => Err(format!("Error starting Anonsurf: {}", e)),
     }
 }
 
@@ -26,7 +27,7 @@ fn stop_anonsurf(state: State<AnonsurfState>) -> Result<String, String> {
             *state.is_active.lock().unwrap() = false;
             Ok("Anonsurf stopped successfully".to_string())
         }
-        Err(e) => Err(format!("Error stopping Anonsurf: {}", e))
+        Err(e) => Err(format!("Error stopping Anonsurf: {}", e)),
     }
 }
 
@@ -34,7 +35,7 @@ fn stop_anonsurf(state: State<AnonsurfState>) -> Result<String, String> {
 fn refresh_identity() -> Result<String, String> {
     match Anonsurf::new_identity() {
         Ok(_) => Ok("New identity requested".to_string()),
-        Err(e) => Err(format!("Error requesting new identity: {}", e))
+        Err(e) => Err(format!("Error requesting new identity: {}", e)),
     }
 }
 
@@ -44,7 +45,7 @@ fn refresh_identity() -> Result<String, String> {
 fn restore_mac(interface: String) -> Result<String, String> {
     match stealth::restore_mac(&interface) {
         Ok(_) => Ok("MAC Address restored".to_string()),
-        Err(e) => Err(format!("Failed to restore MAC: {}", e))
+        Err(e) => Err(format!("Failed to restore MAC: {}", e)),
     }
 }
 
@@ -52,7 +53,7 @@ fn restore_mac(interface: String) -> Result<String, String> {
 fn spoof_mac(interface: String) -> Result<String, String> {
     match stealth::spoof_mac(&interface) {
         Ok(_) => Ok("MAC Address spoofed".to_string()),
-        Err(e) => Err(format!("Failed to spoof MAC: {}", e))
+        Err(e) => Err(format!("Failed to spoof MAC: {}", e)),
     }
 }
 
@@ -60,7 +61,7 @@ fn spoof_mac(interface: String) -> Result<String, String> {
 fn randomize_hostname() -> Result<String, String> {
     match stealth::randomize_hostname() {
         Ok(new_name) => Ok(format!("Hostname changed to {}", new_name)),
-        Err(e) => Err(format!("Failed to change hostname: {}", e))
+        Err(e) => Err(format!("Failed to change hostname: {}", e)),
     }
 }
 
@@ -68,7 +69,7 @@ fn randomize_hostname() -> Result<String, String> {
 fn wipe_ram() -> Result<String, String> {
     match stealth::wipe_ram() {
         Ok(_) => Ok("RAM/Cache wiped".to_string()),
-        Err(e) => Err(format!("Failed to wipe RAM: {}", e))
+        Err(e) => Err(format!("Failed to wipe RAM: {}", e)),
     }
 }
 
@@ -76,7 +77,7 @@ fn wipe_ram() -> Result<String, String> {
 fn set_utc() -> Result<String, String> {
     match stealth::set_utc_timezone() {
         Ok(_) => Ok("Timezone set to UTC".to_string()),
-        Err(e) => Err(format!("Failed to set UTC: {}", e))
+        Err(e) => Err(format!("Failed to set UTC: {}", e)),
     }
 }
 
@@ -84,7 +85,7 @@ fn set_utc() -> Result<String, String> {
 fn clean_logs() -> Result<String, String> {
     match stealth::clean_logs() {
         Ok(_) => Ok("System logs truncated".to_string()),
-        Err(e) => Err(format!("Failed to clean logs: {}", e))
+        Err(e) => Err(format!("Failed to clean logs: {}", e)),
     }
 }
 
@@ -109,13 +110,22 @@ fn check_status(state: State<AnonsurfState>) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize GeoIP
+    let geoip = std::sync::Arc::new(crate::geoip::GeoIpManager::new());
+    let _ = geoip.init(); // Load async/bg
+
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
             // Start traffic monitoring
             stats::start_traffic_monitor(app.handle().clone());
+
+            // Start Honeypot
+            honeypot::start_honeypot_listener(app.handle().clone(), geoip.clone());
+
             Ok(())
         })
         .manage(AnonsurfState::new())
+        .manage(honeypot::HoneypotState::new())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             start_anonsurf,
@@ -128,8 +138,18 @@ pub fn run() {
             wipe_ram,
             set_utc,
             clean_logs,
-            get_system_identity
+            get_system_identity,
+            set_defense_message
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn set_defense_message(
+    state: State<honeypot::HoneypotState>,
+    message: String,
+) -> Result<String, String> {
+    *state.custom_message.lock().unwrap() = message;
+    Ok("Defense message updated".to_string())
 }
