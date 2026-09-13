@@ -104,15 +104,6 @@ chmod +x run.sh
 
 **Note**: Aegis requires `sudo` privileges to modify network interfaces and firewall rules.
 
-## ☕ Support the Developer
-
-If Aegis helps keep you safe, consider supporting the project!
-
-*   **Buy Me a Coffee**: [buymeacoffee.com/belydev](https://buymeacoffee.com/belydev)
-*   **Monero (XMR)**: `466KtH3FTWFYJ2xN9McVzzPnNXZf4GGZr2AQ9eQP6RfuYzd2WkTrckf4ySZF8SsdQQNiyWToG8mTP1DaQfsGTd5p2MkMZTN`
-*   **ZCash (ZEC)**: `u1zzjp0gh9ms5wcfd5uqsj47jjad7qufqm4pugqw0l96h0374zu3pfn0we0v2g88p0apap9y38kj5dasjcnl6sll7psjfx7g763ymrd57t`
-*   **Bitcoin (BTC)**: `bc1quz3lk0s2wzcpycz545dkzcn5lqyct9z60maafp`
-
 <p align="center">
   <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3R4eGxpamI5aW14eHB4eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4ZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/L59z1m8V5V5A/giphy.gif" width="50" />
   <br>
