@@ -43,7 +43,7 @@ For anyone who wants to browse the web anonymously. You don't need to be a tech 
 
 ### 🕵️ Módulos Furtivos (Stealth)
 *   **MAC Spoofing**: Randomiza o endereço físico (MAC) da sua placa de rede com um clique. Inclui botão de "Reset" para restaurar o original.
-*   **Troca de Hostname**: Renomeia seu computador (ex: de `fabio-pc` para `anon-8392`) para confundir scanners de rede local.
+*   **Troca de Hostname**: Renomeia seu computador (ex: de `seu usuario-pc` para `anon-8392`) para confundir scanners de rede local.
 *   **Horário UTC**: Ajusta o relógio do sistema para UTC, combatendo a identificação por fuso horário (fingerprinting).
 
 ### 🧹 Forensics (Limpeza)
@@ -71,7 +71,7 @@ For anyone who wants to browse the web anonymously. You don't need to be a tech 
 
 ### 🕵️ Stealth Modules
 *   **MAC Spoofing**: Randomizes your Network Card's physical address (MAC) with a single click. Includes a "Reset" button to restore the original.
-*   **Hostname Changer**: Renames your computer (e.g., from `fabio-pc` to `anon-8392`) to confuse local network scanners.
+*   **Hostname Changer**: Renames your computer (e.g., from `seu usuario-pc` to `anon-8392`) to confuse local network scanners.
 *   **UTC Timezone**: Sets your system clock to UTC time to fight browser fingerprinting (which uses timezone to guess location).
 
 ### 🧹 Forensics
